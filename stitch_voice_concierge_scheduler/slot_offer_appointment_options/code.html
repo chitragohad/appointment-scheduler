@@ -1,0 +1,255 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Advisor Appointment Scheduler - Select Slot</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&amp;family=Fira+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "error": "#ba1a1a",
+                    "surface-container": "#ebeeee",
+                    "inverse-primary": "#95d1d1",
+                    "outline-variant": "#bfc8c8",
+                    "tertiary-fixed": "#b0f1cd",
+                    "tertiary-container": "#2f6c50",
+                    "surface-container-high": "#e6e9e9",
+                    "on-secondary-container": "#556569",
+                    "surface-dim": "#d7dbdb",
+                    "on-tertiary-fixed-variant": "#0d5137",
+                    "primary": "#0c5252",
+                    "on-tertiary-fixed": "#002113",
+                    "on-error": "#ffffff",
+                    "on-secondary-fixed": "#0e1e21",
+                    "primary-container": "#2d6a6a",
+                    "surface-tint": "#2a6767",
+                    "on-error-container": "#93000a",
+                    "outline": "#707978",
+                    "tertiary-fixed-dim": "#95d4b2",
+                    "secondary": "#516165",
+                    "on-background": "#181c1d",
+                    "primary-fixed-dim": "#95d1d1",
+                    "inverse-on-surface": "#eef1f1",
+                    "on-primary": "#ffffff",
+                    "on-secondary-fixed-variant": "#39494d",
+                    "background": "#f7fafa",
+                    "surface-variant": "#e0e3e3",
+                    "surface-container-highest": "#e0e3e3",
+                    "surface-bright": "#f7fafa",
+                    "on-surface": "#181c1d",
+                    "error-container": "#ffdad6",
+                    "primary-fixed": "#b1eeed",
+                    "on-tertiary-container": "#aaebc7",
+                    "secondary-fixed": "#d4e6e9",
+                    "surface-container-low": "#f1f4f4",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed-dim": "#b8cacd",
+                    "on-primary-fixed": "#002020",
+                    "tertiary": "#115339",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#abe8e7",
+                    "surface": "#f7fafa",
+                    "inverse-surface": "#2d3131",
+                    "secondary-container": "#d1e3e7",
+                    "on-primary-fixed-variant": "#074f4f",
+                    "on-surface-variant": "#3f4848"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "base": "8px",
+                    "container-max": "1140px",
+                    "sm": "12px",
+                    "xs": "4px",
+                    "md": "24px",
+                    "xl": "80px",
+                    "lg": "48px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "display-brand": ["Playfair Display"],
+                    "body-md": ["Fira Sans"],
+                    "headline-lg": ["Playfair Display"],
+                    "label-sm": ["Fira Sans"],
+                    "label-md": ["Fira Sans"],
+                    "headline-lg-mobile": ["Playfair Display"],
+                    "body-lg": ["Fira Sans"],
+                    "headline-md": ["Playfair Display"]
+            },
+            "fontSize": {
+                    "display-brand": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #f7fafa;
+            color: #181c1d;
+            background-image: radial-gradient(circle at 50% 50%, rgba(20, 82, 82, 0.02) 0%, transparent 80%);
+            overflow-x: hidden;
+        }
+        
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .voice-orb-glow {
+            box-shadow: 0 0 60px 10px rgba(12, 82, 82, 0.15);
+        }
+
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 0.8; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        
+        .animate-pulse-soft {
+            animation: pulse-soft 4s ease-in-out infinite;
+        }
+
+        .step-active {
+            border-bottom: 2px solid #0c5252;
+            color: #0c5252;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-background dark:bg-background z-50">
+<nav class="flex justify-between items-center w-full px-gutter py-md max-w-container-max mx-auto">
+<div class="font-display-brand text-headline-md tracking-tight text-primary dark:text-inverse-primary">
+                ADVISOR APPOINTMENT SCHEDULER
+            </div>
+<div class="hidden md:flex items-center gap-lg">
+<a class="text-primary dark:text-inverse-primary border-b-2 border-primary font-label-md py-1" href="#">Scheduler</a>
+<a class="text-secondary dark:text-secondary-fixed-dim hover:text-primary-container transition-colors duration-200 font-label-md py-1" href="#">Dashboard</a>
+<a class="text-secondary dark:text-secondary-fixed-dim hover:text-primary-container transition-colors duration-200 font-label-md py-1" href="#">History</a>
+</div>
+<div class="flex items-center gap-md">
+<button class="material-symbols-outlined text-primary hover:text-primary-container transition-all active:scale-95" title="Account">account_circle</button>
+<button class="material-symbols-outlined text-primary hover:text-primary-container transition-all active:scale-95" title="Settings">settings</button>
+</div>
+</nav>
+</header>
+<main class="flex-grow flex flex-col items-center px-gutter pt-xl pb-lg max-w-container-max mx-auto w-full">
+<!-- Step Indicator -->
+<div class="flex items-center gap-lg mb-xl text-label-md font-label-md uppercase tracking-widest text-on-surface-variant">
+<span class="opacity-40">Consultant</span>
+<span class="material-symbols-outlined text-[16px] opacity-20">chevron_right</span>
+<span class="step-active pb-1">Slots</span>
+<span class="material-symbols-outlined text-[16px] opacity-20">chevron_right</span>
+<span class="opacity-40">Confirm</span>
+</div>
+<!-- Voice Signature (Orb) Area -->
+<div class="relative flex flex-col items-center justify-center mb-lg">
+<div class="absolute -top-12 text-label-sm font-label-sm uppercase tracking-widest text-primary animate-pulse-soft">
+                Agent speaking...
+            </div>
+<!-- Voice Orb -->
+<div class="w-48 h-48 rounded-full bg-gradient-to-br from-primary to-primary-container voice-orb-glow flex items-center justify-center relative overflow-hidden">
+
+<!-- Central pulsing core -->
+<div class="w-24 h-24 rounded-lg bg-primary flex items-center justify-center shadow-lg animate-pulse-soft">
+    <span class="material-symbols-outlined text-on-primary text-[48px]" style="font-variation-settings: 'FILL' 1;">mic</span>
+</div>
+</div>
+<!-- Live Caption -->
+<div class="mt-md text-center max-w-2xl px-md">
+<p class="font-headline-md text-headline-md text-on-surface leading-relaxed">
+                    "I have two slots available. Would you like <span class="text-primary font-semibold">option one</span> or <span class="text-primary font-semibold">two</span>?"
+                </p>
+</div>
+</div>
+<!-- Main Content Area: Slots Offer -->
+<div class="w-full max-w-3xl flex flex-col gap-md">
+<!-- Option 1 Card -->
+<button class="group relative w-full text-left bg-surface-container-lowest border border-outline-variant p-lg rounded-lg transition-all duration-300 hover:border-primary hover:bg-surface-container-low active:scale-[0.98]">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 flex items-center justify-center rounded-full bg-primary-fixed text-primary font-bold">1</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary">Option 1</div>
+<div class="font-body-lg text-body-lg text-on-surface-variant">Tuesday, Oct 24 · 10:00 AM - 10:30 AM IST</div>
+</div>
+</div>
+<div class="px-sm py-xs bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-lg font-label-sm uppercase tracking-tighter">
+                        Most Popular
+                    </div>
+</div>
+</button>
+<!-- Option 2 Card -->
+<button class="group relative w-full text-left bg-surface-container-lowest border border-outline-variant p-lg rounded-lg transition-all duration-300 hover:border-primary hover:bg-surface-container-low active:scale-[0.98]">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-fixed text-secondary font-bold">2</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary">Option 2</div>
+<div class="font-body-lg text-body-lg text-on-surface-variant">Tuesday, Oct 24 · 2:30 PM - 3:00 PM IST</div>
+</div>
+</div>
+</button>
+</div>
+<!-- Interaction Controls -->
+<div class="mt-xl flex flex-wrap justify-center gap-md">
+<button class="bg-primary text-on-primary px-lg py-sm rounded-full font-label-md flex items-center gap-base transition-all hover:opacity-90 active:scale-95">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                Option 1
+            </button>
+<button class="bg-primary text-on-primary px-lg py-sm rounded-full font-label-md flex items-center gap-base transition-all hover:opacity-90 active:scale-95">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                Option 2
+            </button>
+<button class="border border-outline text-on-surface-variant px-lg py-sm rounded-full font-label-md flex items-center gap-base transition-all hover:bg-error-container hover:text-on-error-container hover:border-error-container active:scale-95">
+<span class="material-symbols-outlined text-[20px]">cancel</span>
+                End session
+            </button>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-background dark:bg-background border-t border-surface-variant dark:border-outline-variant mt-xl">
+<div class="flex flex-col items-center justify-center w-full py-lg px-gutter gap-base max-w-container-max mx-auto text-center">
+<div class="flex flex-wrap justify-center gap-lg mb-md">
+<a class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary underline transition-all" href="#">Reschedule</a>
+<a class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary underline transition-all" href="#">Cancel</a>
+<a class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary underline transition-all" href="#">What to prepare</a>
+<a class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary underline transition-all" href="#">Check availability</a>
+</div>
+<p class="font-label-sm text-label-sm text-secondary dark:text-secondary-fixed-dim max-w-2xl">
+                © 2024 Advisor Appointment Scheduler. No PII stored. Secure encrypted links. All times in IST.
+            </p>
+</div>
+</footer>
+<!-- Interactive Layer for Orb simulation -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.addEventListener('mousedown', () => {
+                    btn.classList.add('scale-95');
+                });
+                btn.addEventListener('mouseup', () => {
+                    btn.classList.remove('scale-95');
+                });
+            });
+        });
+    </script>
+
+
+</body></html>
