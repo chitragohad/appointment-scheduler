@@ -14,6 +14,16 @@ def _engine(request: Request) -> ConversationEngine:
     return request.app.state.engine
 
 
+@router.get("/")
+def root() -> dict[str, str]:
+    return {
+        "service": "advisor-scheduler-api",
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
