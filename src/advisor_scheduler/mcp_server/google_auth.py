@@ -46,10 +46,13 @@ def get_credentials() -> Any:
     Resolve credentials for Google Workspace APIs.
 
     Preference order:
-    1. ``GOOGLE_APPLICATION_CREDENTIALS`` service-account JSON
+    1. ``GOOGLE_APPLICATION_CREDENTIALS`` service-account JSON file
        (optional ``GOOGLE_IMPERSONATE_USER`` for Gmail domain-wide delegation)
-    2. OAuth installed-app client secrets (``GOOGLE_OAUTH_CLIENT_SECRETS``)
+    2. ``GOOGLE_OAUTH_TOKEN_JSON`` authorized-user JSON string (Vercel-friendly)
+    3. OAuth installed-app client secrets (``GOOGLE_OAUTH_CLIENT_SECRETS``)
     """
+    import json
+
     load_dotenv(_repo_root() / ".env")
 
     sa_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
@@ -66,11 +69,24 @@ def get_credentials() -> Any:
             creds = creds.with_subject(subject)
         return creds
 
+    token_json = os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "").strip()
+    if token_json:
+        try:
+            info = json.loads(token_json)
+        except json.JSONDecodeError as exc:
+            raise GoogleAuthError("GOOGLE_OAUTH_TOKEN_JSON is not valid JSON") from exc
+        creds = Credentials.from_authorized_user_info(info, SCOPES)
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        if not creds.valid:
+            raise GoogleAuthError("GOOGLE_OAUTH_TOKEN_JSON credentials are not valid")
+        return creds
+
     client_secrets = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "").strip()
     if not client_secrets:
         raise GoogleAuthError(
-            "Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_OAUTH_CLIENT_SECRETS "
-            "for actual Google MCP tools."
+            "Set GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_OAUTH_TOKEN_JSON, "
+            "or GOOGLE_OAUTH_CLIENT_SECRETS for actual Google MCP tools."
         )
 
     secrets_path = _resolve_path(client_secrets)

@@ -32,6 +32,9 @@ advisor-scheduler = "advisor_scheduler.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.vercel]
+entrypoint = "app:app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

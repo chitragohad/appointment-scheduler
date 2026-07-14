@@ -29,16 +29,27 @@ def _calendar_path() -> Path:
 
 
 def create_app(*, today_ist: date | None = None, booking_agent: BookingAgent | None = None) -> FastAPI:
+    import os
+
     load_dotenv()
     app = FastAPI(title="Advisor Appointment Scheduler", version="0.3.0")
+
+    default_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ]
+    raw_origins = os.getenv("CORS_ORIGINS", "").strip()
+    allow_origins = (
+        [o.strip() for o in raw_origins.split(",") if o.strip()]
+        if raw_origins
+        else default_origins
+    )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:4173",
-            "http://127.0.0.1:4173",
-        ],
+        allow_origins=allow_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

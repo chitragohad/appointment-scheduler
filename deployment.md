@@ -1,8 +1,8 @@
 # Deployment Plan — Vercel (Frontend + Backend)
 
-> **Status:** Plan only (not yet executed)  
+> **Status:** Prep code landed; deploy via two Vercel projects  
 > **Target:** Deploy Advisor Appointment Scheduler UI + FastAPI API on Vercel  
-> **Date:** 2026-07-13
+> **Date:** 2026-07-13 (updated 2026-07-14)
 
 **Goal:** Ship the Acoustic Serenity voice UI and FastAPI orchestrator to production URLs on Vercel, with env-based secrets and CORS wired correctly.
 
