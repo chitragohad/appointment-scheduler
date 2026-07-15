@@ -46,10 +46,16 @@ def create_app(*, today_ist: date | None = None, booking_agent: BookingAgent | N
         if raw_origins
         else default_origins
     )
+    # Always keep local origins available for mixed local/UI testing
+    for origin in default_origins:
+        if origin not in allow_origins:
+            allow_origins.append(origin)
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins,
+        # Any Vercel preview/production frontend can call the API
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { createSession, sendMessage, type TurnResponse } from './api/client'
+import {
+  checkHealth,
+  createSession,
+  getApiBase,
+  sendMessage,
+  type TurnResponse,
+} from './api/client'
 import { AppShell } from './components/AppShell'
 import { BookingConfirmed } from './components/BookingConfirmed'
 import { LiveCaption } from './components/LiveCaption'
@@ -89,6 +95,26 @@ export default function App() {
   useEffect(() => {
     sessionIdRef.current = sessionId
   }, [sessionId])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        await checkHealth()
+      } catch (err) {
+        if (cancelled) return
+        const base = getApiBase() || '(same origin)'
+        setError(
+          err instanceof Error
+            ? err.message
+            : `API health check failed. Current API base: ${base}`,
+        )
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const caption =
     [...messages].reverse().find((m) => Boolean(speakableText([m]))) ??

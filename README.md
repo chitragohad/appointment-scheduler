@@ -80,4 +80,13 @@ Set `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_OAUTH_CLIENT_SECRETS`, plus `GOO
 
 ## Deploy (Vercel)
 
-See [`deployment.md`](deployment.md) for the frontend + FastAPI Vercel plan (two projects, env vars, serverless constraints, and go-live checklist).
+See [`deployment.md`](deployment.md).
+
+**Live API (example):** `https://appointment-scheduler-tan.vercel.app`  
+**Frontend:** create a separate Vercel project with Root Directory = `frontend`, and set:
+
+```text
+VITE_API_BASE=https://appointment-scheduler-tan.vercel.app
+```
+
+API CORS already allows `https://*.vercel.app`. After frontend deploy, open that web URL (not the API URL) for voice booking.
