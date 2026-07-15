@@ -13,6 +13,7 @@ credentials.json
 **/credentials.json
 token.json
 client_secret*.json
+.secrets/vercel_google_env.txt
 
 # Frontend
 frontend/node_modules/

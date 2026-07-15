@@ -258,11 +258,35 @@ curl -s -X POST https://<api>.vercel.app/sessions \
 2. Redeploy API.
 3. From browser DevTools → Network: `POST /sessions` and `POST /sessions/:id/message` return 200, no CORS errors.
 
-### Phase 4 — Google live smoke (optional)
+### Phase 4 — Google live smoke (required for Calendar/Docs/Gmail)
 
-1. Book → confirm.
-2. Verify Calendar hold, Docs append, Gmail draft.
-3. If failures: check function logs in Vercel → Project → Deployments → Functions.
+Production currently fails MCP tools until Google secrets are set on the **API** project.
+
+1. Locally export paste-ready values (gitignored file):
+
+```bash
+python scripts/export_vercel_google_env.py
+# opens .secrets/vercel_google_env.txt
+```
+
+2. In Vercel → API project → Settings → Environment Variables, add:
+
+| Name | Value |
+|------|--------|
+| `GOOGLE_OAUTH_TOKEN_JSON` | full contents of `.secrets/google_token.json` |
+| `GOOGLE_CALENDAR_ID` | from local `.env` |
+| `GOOGLE_DOCS_PREBOOKINGS_ID` | from local `.env` |
+| `GMAIL_DRAFT_TO` | advisor email |
+| `ADVISOR_EMAIL` | advisor email |
+
+3. Redeploy API, then verify:
+
+```bash
+curl -s https://YOUR-API.vercel.app/health/google
+# expect "ready": true
+```
+
+4. Complete a booking and confirm Calendar event, Docs line, and Gmail draft.
 
 ### Phase 5 — Hardening (post-MVP)
 

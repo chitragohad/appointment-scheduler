@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -41,56 +43,81 @@ def _oauth_token_path() -> Path:
     return _resolve_path(raw)
 
 
+def _is_serverless() -> bool:
+    return bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+
+def _load_json_env(*names: str) -> dict[str, Any] | None:
+    for name in names:
+        raw = os.getenv(name, "").strip()
+        if not raw:
+            continue
+        try:
+            if raw.startswith("{"):
+                return json.loads(raw)
+            # Allow base64-encoded JSON for easier Vercel pasting
+            decoded = base64.b64decode(raw).decode("utf-8")
+            return json.loads(decoded)
+        except Exception as exc:  # noqa: BLE001
+            raise GoogleAuthError(f"{name} is not valid JSON (or base64 JSON)") from exc
+    return None
+
+
 def get_credentials() -> Any:
     """
     Resolve credentials for Google Workspace APIs.
 
     Preference order:
     1. ``GOOGLE_APPLICATION_CREDENTIALS`` service-account JSON file
-       (optional ``GOOGLE_IMPERSONATE_USER`` for Gmail domain-wide delegation)
-    2. ``GOOGLE_OAUTH_TOKEN_JSON`` authorized-user JSON string (Vercel-friendly)
-    3. OAuth installed-app client secrets (``GOOGLE_OAUTH_CLIENT_SECRETS``)
+       or ``GOOGLE_SERVICE_ACCOUNT_JSON`` / ``GOOGLE_SERVICE_ACCOUNT_JSON_B64``
+    2. ``GOOGLE_OAUTH_TOKEN_JSON`` / ``GOOGLE_OAUTH_TOKEN_JSON_B64`` (Vercel-friendly)
+    3. OAuth installed-app client secrets file + local token cache (local only)
     """
-    import json
-
     load_dotenv(_repo_root() / ".env")
 
+    sa_info = _load_json_env("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_SERVICE_ACCOUNT_JSON_B64")
     sa_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    if sa_path:
-        path = _resolve_path(sa_path)
-        if not path.is_file():
-            raise GoogleAuthError(f"Service account file not found: {path}")
-        creds = service_account.Credentials.from_service_account_file(
-            str(path),
-            scopes=SCOPES,
-        )
+    if sa_info or sa_path:
+        if sa_info:
+            creds = service_account.Credentials.from_service_account_info(sa_info, scopes=SCOPES)
+        else:
+            path = _resolve_path(sa_path)
+            if not path.is_file():
+                raise GoogleAuthError(f"Service account file not found: {path}")
+            creds = service_account.Credentials.from_service_account_file(str(path), scopes=SCOPES)
         subject = os.getenv("GOOGLE_IMPERSONATE_USER", "").strip()
         if subject:
             creds = creds.with_subject(subject)
         return creds
 
-    token_json = os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "").strip()
-    if token_json:
-        try:
-            info = json.loads(token_json)
-        except json.JSONDecodeError as exc:
-            raise GoogleAuthError("GOOGLE_OAUTH_TOKEN_JSON is not valid JSON") from exc
-        creds = Credentials.from_authorized_user_info(info, SCOPES)
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+    token_info = _load_json_env("GOOGLE_OAUTH_TOKEN_JSON", "GOOGLE_OAUTH_TOKEN_JSON_B64")
+    if token_info:
+        creds = Credentials.from_authorized_user_info(token_info, SCOPES)
         if not creds.valid:
-            raise GoogleAuthError("GOOGLE_OAUTH_TOKEN_JSON credentials are not valid")
+            if creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                raise GoogleAuthError(
+                    "GOOGLE_OAUTH_TOKEN_JSON credentials are not valid "
+                    "(missing refresh_token or client fields)."
+                )
         return creds
 
     client_secrets = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "").strip()
     if not client_secrets:
         raise GoogleAuthError(
-            "Set GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_OAUTH_TOKEN_JSON, "
-            "or GOOGLE_OAUTH_CLIENT_SECRETS for actual Google MCP tools."
+            "Google credentials missing. On Vercel set GOOGLE_OAUTH_TOKEN_JSON "
+            "(contents of .secrets/google_token.json) plus GOOGLE_CALENDAR_ID, "
+            "GOOGLE_DOCS_PREBOOKINGS_ID, and GMAIL_DRAFT_TO."
         )
 
     secrets_path = _resolve_path(client_secrets)
     if not secrets_path.is_file():
+        if _is_serverless():
+            raise GoogleAuthError(
+                "OAuth client secrets file is not available on Vercel. "
+                "Set GOOGLE_OAUTH_TOKEN_JSON to your authorized-user token JSON."
+            )
         raise GoogleAuthError(f"OAuth client secrets file not found: {secrets_path}")
 
     token_path = _oauth_token_path()
@@ -102,6 +129,11 @@ def get_credentials() -> Any:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            if _is_serverless():
+                raise GoogleAuthError(
+                    "No valid Google OAuth token on Vercel. "
+                    "Set GOOGLE_OAUTH_TOKEN_JSON from a locally authorized token."
+                )
             flow = InstalledAppFlow.from_client_secrets_file(str(secrets_path), SCOPES)
             creds = flow.run_local_server(port=0)
         token_path.parent.mkdir(parents=True, exist_ok=True)
@@ -139,6 +171,29 @@ def gmail_draft_to() -> str:
         or os.getenv("ADVISOR_EMAIL", "").strip()
         or ""
     )
+
+
+def google_config_status() -> dict[str, bool]:
+    """Non-secret status for /health diagnostics."""
+    load_dotenv(_repo_root() / ".env")
+    return {
+        "has_oauth_token_env": bool(
+            os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "").strip()
+            or os.getenv("GOOGLE_OAUTH_TOKEN_JSON_B64", "").strip()
+        ),
+        "has_oauth_token_file": _oauth_token_path().is_file(),
+        "has_service_account_env": bool(
+            os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+            or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_B64", "").strip()
+            or os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+        ),
+        "has_calendar_id": bool(os.getenv("GOOGLE_CALENDAR_ID", "").strip()),
+        "has_docs_id": bool(os.getenv("GOOGLE_DOCS_PREBOOKINGS_ID", "").strip()),
+        "has_gmail_to": bool(
+            os.getenv("GMAIL_DRAFT_TO", "").strip() or os.getenv("ADVISOR_EMAIL", "").strip()
+        ),
+        "serverless": _is_serverless(),
+    }
 
 
 def clear_service_cache() -> None:

@@ -514,6 +514,11 @@ class ConversationEngine:
                 "calendar_event_id": side.calendar_event_id,
                 "mcp_succeeded": side.succeeded,
                 "mcp_failed": side.failed,
+                "mcp_errors": {
+                    name: (data.get("error") if isinstance(data, dict) else None)
+                    for name, data in side.tool_results.items()
+                    if isinstance(data, dict) and data.get("error")
+                },
             },
         )
 

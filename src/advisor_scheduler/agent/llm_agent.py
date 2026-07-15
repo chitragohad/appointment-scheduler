@@ -275,7 +275,10 @@ class BookingAgent:
         try:
             import urllib.request
 
-            model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+            model = os.getenv("GEMINI_EMAIL_MODEL", "").strip() or "gemini-2.0-flash"
+            # Avoid native-audio / preview models that 404 on generateContent
+            if "native-audio" in model or "preview" in model:
+                model = "gemini-2.0-flash"
             url = (
                 f"https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{model}:generateContent?key={api_key}"

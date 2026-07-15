@@ -29,6 +29,21 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/health/google")
+def health_google() -> dict:
+    """Non-secret Google config diagnostics (safe to expose)."""
+    from advisor_scheduler.mcp_server.google_auth import google_config_status
+
+    status = google_config_status()
+    ready = (
+        (status["has_oauth_token_env"] or status["has_oauth_token_file"] or status["has_service_account_env"])
+        and status["has_calendar_id"]
+        and status["has_docs_id"]
+        and status["has_gmail_to"]
+    )
+    return {"status": "ok" if ready else "misconfigured", "google": status, "ready": ready}
+
+
 @router.post("/sessions", response_model=TurnResponse)
 def create_session(body: CreateSessionRequest, request: Request) -> TurnResponse:
     result = _engine(request).create_session(channel=body.channel)
