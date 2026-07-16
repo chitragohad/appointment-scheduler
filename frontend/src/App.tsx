@@ -52,11 +52,11 @@ const SUGGESTIONS = [
 ] as const
 
 const TOPICS = [
-  { label: '1 · KYC/Onboarding', prompt: 'KYC/Onboarding' },
-  { label: '2 · SIP/Mandates', prompt: 'SIP/Mandates' },
-  { label: '3 · Statements/Tax Docs', prompt: 'Statements/Tax Docs' },
-  { label: '4 · Withdrawals & Timelines', prompt: 'Withdrawals & Timelines' },
-  { label: '5 · Account Changes/Nominee', prompt: 'Account Changes/Nominee' },
+  { label: '1 · KYC/Onboarding', prompt: '1' },
+  { label: '2 · SIP/Mandates', prompt: '2' },
+  { label: '3 · Statements/Tax Docs', prompt: '3' },
+  { label: '4 · Withdrawals & Timelines', prompt: '4' },
+  { label: '5 · Account Changes/Nominee', prompt: '5' },
 ] as const
 
 function speakableText(messages: string[]): string {

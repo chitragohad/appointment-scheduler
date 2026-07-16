@@ -39,12 +39,16 @@ CODE_RE = re.compile(r"^NL-[A-Z0-9]{4}$")
         ("K Y C", Topic.KYC_ONBOARDING),
         ("1", Topic.KYC_ONBOARDING),
         ("option 1", Topic.KYC_ONBOARDING),
+        ("option one", Topic.KYC_ONBOARDING),
+        ("I want 2", Topic.SIP_MANDATES),
+        ("I will take 3", Topic.STATEMENTS_TAX),
         ("I need help with SIP mandates", Topic.SIP_MANDATES),
         ("S I P", Topic.SIP_MANDATES),
         ("2", Topic.SIP_MANDATES),
         ("statements and tax docs", Topic.STATEMENTS_TAX),
         ("tax docs", Topic.STATEMENTS_TAX),
         ("3", Topic.STATEMENTS_TAX),
+        ("number three", Topic.STATEMENTS_TAX),
         ("withdrawals & timelines", Topic.WITHDRAWALS),
         ("withdrawal", Topic.WITHDRAWALS),
         ("4", Topic.WITHDRAWALS),
@@ -52,6 +56,8 @@ CODE_RE = re.compile(r"^NL-[A-Z0-9]{4}$")
         ("nominee", Topic.ACCOUNT_NOMINEE),
         ("5", Topic.ACCOUNT_NOMINEE),
         ("fifth", Topic.ACCOUNT_NOMINEE),
+        ("go with 1", Topic.KYC_ONBOARDING),
+        ("1 KYC/Onboarding", Topic.KYC_ONBOARDING),
     ],
 )
 def test_parse_topic_accepts_known_topics(text: str, expected: Topic) -> None:
@@ -65,6 +71,9 @@ def test_parse_topic_accepts_known_topics(text: str, expected: Topic) -> None:
         "which fund should I buy",
         "",
         "something unrelated",
+        # STT echo of the agent prompt listing every topic
+        "Which consultation topic fits best? Say 1 KYC/Onboarding, 2 SIP/Mandates, "
+        "3 Statements/Tax Docs, 4 Withdrawals & Timelines, or 5 Account Changes/Nominee.",
     ],
 )
 def test_parse_topic_rejects_unknown(text: str) -> None:
