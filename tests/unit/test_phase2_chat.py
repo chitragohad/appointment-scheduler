@@ -104,6 +104,8 @@ def test_classify_advice_flag() -> None:
 def test_extract_yes_no_and_slot_choice() -> None:
     assert extract_yes_no("yes please") == "yes"
     assert extract_yes_no("no") == "no"
+    assert extract_yes_no("pick again") == "no"
+    assert extract_yes_no("another time") == "no"
     assert extract_slot_choice("I'll take the first one") == 1
     assert extract_slot_choice("option 2") == 2
 
@@ -195,7 +197,29 @@ def test_book_new_happy_path_to_close_with_ist_and_code(
     assert record.topic == Topic.SIP_MANDATES
 
 
-def test_confirm_message_repeats_full_ist_datetime(engine: ConversationEngine) -> None:
+def test_confirm_no_restarts_preference(engine: ConversationEngine) -> None:
+    created = engine.create_session(channel="chat")
+    session_id = created.session_id
+    engine.handle(session_id, "I understand")
+    engine.handle(session_id, "book a new slot")
+    engine.handle(session_id, "SIP Mandates")
+    engine.handle(session_id, "July 15 morning")
+    engine.handle(session_id, "1")
+
+    again = engine.handle(session_id, "pick again")
+    assert again.state == SessionState.PREFERENCE
+    session = engine.get_session(session_id)
+    assert session is not None
+    assert session.selected_slot is None
+    assert session.offered_slots == []
+    assert session.preference is None
+    assert session.topic == Topic.SIP_MANDATES
+    joined = " ".join(again.messages).lower()
+    assert "day" in joined or "time" in joined
+
+    # Can continue booking with a new preference
+    offer = engine.handle(session_id, "July 16 at 10:00 am")
+    assert offer.state == SessionState.OFFER_SLOTS
     created = engine.create_session(channel="chat")
     session_id = created.session_id
     engine.handle(session_id, "I understand")

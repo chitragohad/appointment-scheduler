@@ -431,6 +431,24 @@ export default function App() {
                 I understand
               </button>
             )}
+            {(state === 'confirm' || state === 'reschedule_confirm') && (
+              <>
+                <button
+                  type="button"
+                  className="rounded-lg bg-primary px-lg py-sm text-label-md text-on-primary hover:bg-primary-container"
+                  onClick={() => void handleUserText('yes')}
+                >
+                  Yes, confirm
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-primary px-lg py-sm text-label-md text-primary hover:bg-surface-container"
+                  onClick={() => void handleUserText('pick again')}
+                >
+                  No / pick again
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="rounded-lg border border-secondary px-lg py-sm text-label-md text-secondary hover:bg-surface-container"

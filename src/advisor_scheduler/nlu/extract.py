@@ -11,7 +11,16 @@ from advisor_scheduler.domain.slots import Slot, TimePreference
 from advisor_scheduler.domain.topics import Topic, parse_topic
 
 _YES = re.compile(r"^\s*(yes|yep|yeah|yup|sure|confirm|correct|ok(ay)?)\b", re.I)
-_NO = re.compile(r"^\s*(no|nope|nah|cancel that|not really)\b", re.I)
+_NO = re.compile(
+    r"^\s*(no|nope|nah|cancel that|not really|pick again|choose again|different|"
+    r"another (slot|time|date|one)|change (it|slot|time|date)|start over)\b",
+    re.I,
+)
+_PICK_AGAIN = re.compile(
+    r"\b(pick again|choose again|another (slot|time|date|one)|different (slot|time|date|one)|"
+    r"change (the )?(slot|time|date)|new (slot|time|date)|not that one)\b",
+    re.I,
+)
 _DATEISH = re.compile(
     r"\b(january|february|march|april|may|june|july|august|september|october|november|december|"
     r"jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec|tomorrow|today|morning|afternoon|evening|"
@@ -35,9 +44,12 @@ _MONTHS.update({name.lower(): i for i, name in enumerate(calendar.month_abbr) if
 def extract_yes_no(text: str) -> Literal["yes", "no", "unknown"]:
     if not text or not text.strip():
         return "unknown"
-    if _YES.search(text.strip()):
+    stripped = text.strip()
+    if _PICK_AGAIN.search(stripped):
+        return "no"
+    if _YES.search(stripped):
         return "yes"
-    if _NO.search(text.strip()):
+    if _NO.search(stripped):
         return "no"
     return "unknown"
 

@@ -439,24 +439,28 @@ class ConversationEngine:
     def _on_confirm(self, session: Session, text: str, events: list[AnalyticsEvent]) -> TurnResult:
         decision = extract_yes_no(text)
         if decision == "no":
-            self._transition(session, SessionState.OFFER_SLOTS, events)
+            # Start booking time selection over — ask for a new date/time
+            session.selected_slot = None
+            session.offered_slots = []
+            session.preference = None
+            self._transition(session, SessionState.PREFERENCE, events)
             self.sessions.save(session)
-            slots = session.offered_slots
-            lines = [
-                "No problem. Here are the options again:",
-                f"1) {format_ist(slots[0].start)}",
-                f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
-                "Reply with 1 or 2.",
-            ]
             return TurnResult(
-                messages=[m for m in lines if m],
+                messages=[
+                    "No problem — let’s pick a different time. "
+                    "What day and time do you prefer in IST? "
+                    "For example: “July 16 at 10:00 am” or “July 15 morning”.",
+                ],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
+                meta={"topic": session.topic.value if session.topic else None},
             )
         if decision != "yes":
             return TurnResult(
-                messages=['Please reply "yes" to confirm or "no" to choose another slot.'],
+                messages=[
+                    'Please reply "yes" to confirm, or "no" / "pick again" to choose a new date/time.'
+                ],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
@@ -804,23 +808,28 @@ class ConversationEngine:
     ) -> TurnResult:
         decision = extract_yes_no(text)
         if decision == "no":
-            self._transition(session, SessionState.RESCHEDULE_OFFER, events)
+            session.selected_slot = None
+            session.offered_slots = []
+            session.preference = None
+            self._transition(session, SessionState.RESCHEDULE_PREFERENCE, events)
             self.sessions.save(session)
-            slots = session.offered_slots
-            lines = [
-                "Okay — pick again:",
-                f"1) {format_ist(slots[0].start)}",
-                f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
-            ]
             return TurnResult(
-                messages=[m for m in lines if m],
+                messages=[
+                    "Okay — let’s choose a different time for the reschedule. "
+                    "What new day/time do you prefer in IST? "
+                    "For example: “July 16 at 10:00 am” or “July 16 morning”.",
+                ],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
+                meta={"booking_code": session.booking_code},
             )
         if decision != "yes":
             return TurnResult(
-                messages=['Please reply "yes" to confirm the reschedule or "no" to pick again.'],
+                messages=[
+                    'Please reply "yes" to confirm the reschedule, or "no" / "pick again" '
+                    "for a new date/time."
+                ],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
