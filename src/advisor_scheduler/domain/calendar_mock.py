@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
+from advisor_scheduler.domain.ist import IST
 from advisor_scheduler.domain.slots import Slot
 
 
@@ -35,6 +37,41 @@ class MockCalendarService:
     def get(self, slot_id: str) -> Slot | None:
         slot = self._slots.get(slot_id)
         return slot.model_copy(deep=True) if slot else None
+
+    def ensure_exact_slot(
+        self,
+        date_ist: date,
+        time_ist: time,
+        *,
+        duration_minutes: int = 30,
+    ) -> Slot:
+        """
+        Return an available slot at the exact IST start, creating one if needed.
+
+        Used when the caller names a precise date and time so booking can proceed
+        even if that moment was not pre-seeded in the mock calendar JSON.
+        """
+        start = datetime.combine(date_ist, time_ist, tzinfo=IST)
+        end = start + timedelta(minutes=duration_minutes)
+        for slot in self._slots.values():
+            local = slot.start if slot.start.tzinfo else slot.start.replace(tzinfo=IST)
+            local = local.astimezone(IST)
+            if local.replace(second=0, microsecond=0) != start:
+                continue
+            if slot.status == "available":
+                return slot.model_copy(deep=True)
+            # Held/waitlist at same instant — mint a distinct bookable id
+            break
+
+        slot_id = f"slot_{date_ist.strftime('%Y%m%d')}_{time_ist.strftime('%H%M')}"
+        if slot_id in self._slots:
+            suffix = 1
+            while f"{slot_id}_{suffix}" in self._slots:
+                suffix += 1
+            slot_id = f"{slot_id}_{suffix}"
+        created = Slot(id=slot_id, start=start, end=end, status="available")
+        self._slots[slot_id] = created
+        return created.model_copy(deep=True)
 
     def mark_held(self, slot_id: str) -> None:
         slot = self._slots.get(slot_id)

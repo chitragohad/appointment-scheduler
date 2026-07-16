@@ -22,6 +22,7 @@ ALLOWED_TRANSITIONS: dict[SessionState, set[SessionState]] = {
     SessionState.TOPIC: {SessionState.PREFERENCE, SessionState.TOPIC, SessionState.ADVICE_REFUSAL},
     SessionState.PREFERENCE: {
         SessionState.OFFER_SLOTS,
+        SessionState.CONFIRM,
         SessionState.WAITLIST,
         SessionState.PREFERENCE,
         SessionState.ADVICE_REFUSAL,
@@ -36,9 +37,11 @@ ALLOWED_TRANSITIONS: dict[SessionState, set[SessionState]] = {
         SessionState.ORCHESTRATE,
         SessionState.CLOSE,
         SessionState.OFFER_SLOTS,
+        SessionState.PREFERENCE,
         SessionState.CONFIRM,
         SessionState.ADVICE_REFUSAL,
     },
+
     SessionState.ORCHESTRATE: {SessionState.CLOSE},
     SessionState.WAITLIST: {SessionState.CLOSE},
     SessionState.CLOSE: {SessionState.ENDED},
@@ -55,6 +58,7 @@ ALLOWED_TRANSITIONS: dict[SessionState, set[SessionState]] = {
     },
     SessionState.RESCHEDULE_PREFERENCE: {
         SessionState.RESCHEDULE_OFFER,
+        SessionState.RESCHEDULE_CONFIRM,
         SessionState.RESCHEDULE_PREFERENCE,
         SessionState.WAITLIST,
         SessionState.ADVICE_REFUSAL,
@@ -68,9 +72,11 @@ ALLOWED_TRANSITIONS: dict[SessionState, set[SessionState]] = {
     SessionState.RESCHEDULE_CONFIRM: {
         SessionState.CLOSE,
         SessionState.RESCHEDULE_OFFER,
+        SessionState.RESCHEDULE_PREFERENCE,
         SessionState.RESCHEDULE_CONFIRM,
         SessionState.ADVICE_REFUSAL,
     },
+
     SessionState.CANCEL_LOOKUP: {
         SessionState.CANCEL_CONFIRM,
         SessionState.CANCEL_LOOKUP,

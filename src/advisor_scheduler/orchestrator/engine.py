@@ -327,13 +327,64 @@ class ConversationEngine:
         self.sessions.save(session)
         return TurnResult(
             messages=[
-                f"Topic set to {topic.value}. What day and time window do you prefer in IST? "
-                "For example: “July 15 morning”."
+                f"Topic set to {topic.value}. What day and exact time do you prefer in IST? "
+                "For example: “July 16 at 10:00 am”, or a window like “July 15 morning”."
             ],
             state=session.state,
             session_id=session.session_id,
             events=events,
             meta={"topic": topic.value},
+        )
+
+    def _slots_for_preference(self, pref):
+        """Resolve mock slots; mint an exact slot when the user named date + clock time."""
+        slots = find_slots(pref, self.calendar, n=2)
+        exact = pref.date_ist is not None and pref.exact_time_ist is not None
+        if exact:
+            if not slots:
+                slots = [
+                    self.calendar.ensure_exact_slot(pref.date_ist, pref.exact_time_ist)
+                ]
+            else:
+                slots = slots[:1]
+        return slots, exact
+
+    def _ask_confirm_booking(
+        self,
+        session: Session,
+        events: list[AnalyticsEvent],
+        *,
+        reschedule: bool = False,
+    ) -> TurnResult:
+        assert session.selected_slot is not None
+        slot = session.selected_slot
+        if reschedule:
+            self._transition(session, SessionState.RESCHEDULE_CONFIRM, events)
+            self.sessions.save(session)
+            return TurnResult(
+                messages=[
+                    f"I caught {format_ist(slot.start)} (IST) for {session.booking_code}. "
+                    'Reply "yes" to confirm the reschedule, or "no" to pick again.'
+                ],
+                state=session.state,
+                session_id=session.session_id,
+                events=events,
+                meta={"selected_slot_id": slot.id},
+            )
+        self._transition(session, SessionState.CONFIRM, events)
+        self.sessions.save(session)
+        return TurnResult(
+            messages=[
+                f"I caught {format_ist(slot.start)} (IST). "
+                'Reply "yes" to confirm this booking, or "no" to pick again.'
+            ],
+            state=session.state,
+            session_id=session.session_id,
+            events=events,
+            meta={
+                "selected_slot_id": slot.id,
+                "selected_slot_start": slot.start.isoformat(),
+            },
         )
 
     def _on_preference(self, session: Session, text: str, events: list[AnalyticsEvent]) -> TurnResult:
@@ -350,15 +401,14 @@ class ConversationEngine:
             )
 
         session.preference = pref
-        slots = find_slots(pref, self.calendar, n=2)
+        slots, exact = self._slots_for_preference(pref)
         if not slots:
-            if pref.exact_time_ist is not None:
+            if pref.exact_time_ist is not None and pref.date_ist is None:
                 when = pref.exact_time_ist.strftime("%H:%M")
-                day = pref.date_ist.isoformat() if pref.date_ist else "that day"
                 return TurnResult(
                     messages=[
-                        f"I don’t have an exact available slot at {when} IST on {day}. "
-                        "Please try another exact time, or say a morning/afternoon/evening window."
+                        f"I heard {when} IST, but need the day too. "
+                        "For example: “July 16 at 10:00 am”."
                     ],
                     state=session.state,
                     session_id=session.session_id,
@@ -366,21 +416,20 @@ class ConversationEngine:
                 )
             return self._waitlist(session, events)
 
+        if exact:
+            session.offered_slots = slots
+            session.selected_slot = slots[0]
+            return self._ask_confirm_booking(session, events)
+
         session.offered_slots = slots
         self._transition(session, SessionState.OFFER_SLOTS, events)
         self.sessions.save(session)
-        if pref.exact_time_ist is not None and len(slots) == 1:
-            lines = [
-                f"I found an exact match for {format_ist(slots[0].start)} (IST).",
-                "Reply 1 to choose it, or tell me another exact date/time.",
-            ]
-        else:
-            lines = [
-                "Here are available slots matching what you said (IST):",
-                f"1) {format_ist(slots[0].start)}",
-                f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
-                "Reply with 1 or 2, or repeat the exact date/time to choose.",
-            ]
+        lines = [
+            "Here are available slots matching what you said (IST):",
+            f"1) {format_ist(slots[0].start)}",
+            f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
+            "Reply with 1 or 2, or say an exact date and time to confirm.",
+        ]
         return TurnResult(
             messages=[m for m in lines if m],
             state=session.state,
@@ -401,15 +450,11 @@ class ConversationEngine:
             today_ist=self.today_ist,
         )
         if choice is None or choice > len(session.offered_slots):
-            if looks_like_datetime_request(text):
-                msg = (
-                    "That date/time doesn’t exactly match option 1 or 2. "
-                    "Please say option 1 or 2, or repeat the exact shown time."
-                )
-            else:
-                msg = "Please choose slot 1 or 2, or say the exact date/time shown."
+            if looks_like_datetime_request(text, today_ist=self.today_ist):
+                # User named a new exact date/time — restart preference resolution
+                return self._on_preference(session, text, events)
             return TurnResult(
-                messages=[msg],
+                messages=["Please choose slot 1 or 2, or say the exact date and time."],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
@@ -422,19 +467,7 @@ class ConversationEngine:
             )
 
         session.selected_slot = session.offered_slots[choice - 1]
-        self._transition(session, SessionState.CONFIRM, events)
-        self.sessions.save(session)
-        slot = session.selected_slot
-        return TurnResult(
-            messages=[
-                f"Please confirm this tentative slot: {format_ist(slot.start)} (IST). "
-                'Reply "yes" to confirm or "no" to pick again.'
-            ],
-            state=session.state,
-            session_id=session.session_id,
-            events=events,
-            meta={"selected_slot_id": slot.id},
-        )
+        return self._ask_confirm_booking(session, events)
 
     def _on_confirm(self, session: Session, text: str, events: list[AnalyticsEvent]) -> TurnResult:
         decision = extract_yes_no(text)
@@ -552,6 +585,8 @@ class ConversationEngine:
             meta={
                 "booking_code": code,
                 "secure_details_url": url,
+                "slot_start": slot.start.isoformat(),
+                "selected_slot_start": slot.start.isoformat(),
                 "calendar_event_id": side.calendar_event_id,
                 "mcp_succeeded": side.succeeded,
                 "mcp_failed": side.failed,
@@ -730,21 +765,25 @@ class ConversationEngine:
                 events=events,
             )
         session.preference = pref
-        slots = find_slots(pref, self.calendar, n=2)
+        slots, exact = self._slots_for_preference(pref)
         if not slots:
-            if pref.exact_time_ist is not None:
+            if pref.exact_time_ist is not None and pref.date_ist is None:
                 when = pref.exact_time_ist.strftime("%H:%M")
-                day = pref.date_ist.isoformat() if pref.date_ist else "that day"
                 return TurnResult(
                     messages=[
-                        f"No exact available slot at {when} IST on {day} for reschedule. "
-                        "Try another exact time or a morning/afternoon/evening window."
+                        f"I heard {when} IST, but need the day too for reschedule. "
+                        "For example: “July 16 at 10:00 am”."
                     ],
                     state=session.state,
                     session_id=session.session_id,
                     events=events,
                 )
             return self._waitlist(session, events)
+
+        if exact:
+            session.offered_slots = slots
+            session.selected_slot = slots[0]
+            return self._ask_confirm_booking(session, events, reschedule=True)
 
         session.offered_slots = slots
         self._transition(session, SessionState.RESCHEDULE_OFFER, events)
@@ -753,7 +792,7 @@ class ConversationEngine:
             "Here are available slots matching what you said (IST):",
             f"1) {format_ist(slots[0].start)}",
             f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
-            "Reply with 1 or 2, or repeat the exact date/time.",
+            "Reply with 1 or 2, or say an exact date and time.",
         ]
         return TurnResult(
             messages=[m for m in lines if m],
@@ -776,32 +815,16 @@ class ConversationEngine:
             today_ist=self.today_ist,
         )
         if choice is None or choice > len(session.offered_slots):
-            if looks_like_datetime_request(text):
-                msg = (
-                    "That date/time doesn’t exactly match option 1 or 2. "
-                    "Please say option 1 or 2, or repeat the exact shown time."
-                )
-            else:
-                msg = "Please choose slot 1 or 2, or say the exact date/time shown."
+            if looks_like_datetime_request(text, today_ist=self.today_ist):
+                return self._on_reschedule_preference(session, text, events)
             return TurnResult(
-                messages=[msg],
+                messages=["Please choose slot 1 or 2, or say the exact date and time."],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
             )
         session.selected_slot = session.offered_slots[choice - 1]
-        self._transition(session, SessionState.RESCHEDULE_CONFIRM, events)
-        self.sessions.save(session)
-        slot = session.selected_slot
-        return TurnResult(
-            messages=[
-                f"Confirm reschedule of {session.booking_code} to {format_ist(slot.start)} (IST)? "
-                'Reply "yes" or "no".'
-            ],
-            state=session.state,
-            session_id=session.session_id,
-            events=events,
-        )
+        return self._ask_confirm_booking(session, events, reschedule=True)
 
     def _on_reschedule_confirm(
         self, session: Session, text: str, events: list[AnalyticsEvent]

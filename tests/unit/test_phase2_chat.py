@@ -126,6 +126,30 @@ def test_extract_preference_exact_time() -> None:
     assert pref.window_start_ist is None
 
 
+def test_extract_preference_spoken_variants() -> None:
+    today = date(2026, 7, 16)
+    day_month = extract_preference("16 July at 10 am", today_ist=today)
+    assert day_month is not None
+    assert day_month.date_ist == date(2026, 7, 16)
+    assert day_month.exact_time_ist == time(10, 0)
+
+    spoken = extract_preference("July sixteenth at ten a.m.", today_ist=today)
+    assert spoken is not None
+    assert spoken.date_ist == date(2026, 7, 16)
+    assert spoken.exact_time_ist == time(10, 0)
+
+    tomorrow = extract_preference("tomorrow at three pm", today_ist=today)
+    assert tomorrow is not None
+    assert tomorrow.date_ist == date(2026, 7, 17)
+    assert tomorrow.exact_time_ist == time(15, 0)
+
+    # today is Thursday 16 Jul 2026; next Monday is 20 Jul
+    nxt = extract_preference("next Monday at 11am", today_ist=today)
+    assert nxt is not None
+    assert nxt.date_ist == date(2026, 7, 20)
+    assert nxt.exact_time_ist == time(11, 0)
+
+
 # --- orchestrator guards ----------------------------------------------------
 
 
@@ -217,9 +241,15 @@ def test_confirm_no_restarts_preference(engine: ConversationEngine) -> None:
     joined = " ".join(again.messages).lower()
     assert "day" in joined or "time" in joined
 
-    # Can continue booking with a new preference
-    offer = engine.handle(session_id, "July 16 at 10:00 am")
-    assert offer.state == SessionState.OFFER_SLOTS
+    # Can continue booking with an exact spoken date/time → confirm directly
+    confirm = engine.handle(session_id, "July 16 at 10:00 am")
+    assert confirm.state == SessionState.CONFIRM
+    assert any("caught" in m.lower() or "IST" in m for m in confirm.messages)
+    booked = engine.handle(session_id, "yes")
+    assert booked.state in {SessionState.CLOSE, SessionState.ENDED}
+
+
+def test_confirm_shows_ist_for_window_choice(engine: ConversationEngine) -> None:
     created = engine.create_session(channel="chat")
     session_id = created.session_id
     engine.handle(session_id, "I understand")
@@ -238,6 +268,26 @@ def test_confirm_no_restarts_preference(engine: ConversationEngine) -> None:
     assert "IST" in joined
     # Slot 1 on July 15 morning is 10:00
     assert "15" in joined and "2026" in joined
+
+
+def test_exact_spoken_time_goes_to_confirm_then_books(engine: ConversationEngine) -> None:
+    created = engine.create_session(channel="chat")
+    session_id = created.session_id
+    engine.handle(session_id, "I understand")
+    engine.handle(session_id, "book a new slot")
+    engine.handle(session_id, "SIP Mandates")
+
+    confirm = engine.handle(session_id, "tomorrow at three pm")
+    assert confirm.state == SessionState.CONFIRM
+    session = engine.get_session(session_id)
+    assert session is not None
+    assert session.selected_slot is not None
+    assert session.selected_slot.start.day == 14  # today fixture is Jul 13 → tomorrow 14
+    assert session.selected_slot.start.hour == 15
+
+    final = engine.handle(session_id, "yes")
+    assert final.state in {SessionState.CLOSE, SessionState.ENDED}
+    assert any("15:00" in m or "15:" in m for m in final.messages)
 
 
 # --- HTTP API ---------------------------------------------------------------

@@ -25,7 +25,7 @@ _DATEISH = re.compile(
     r"\b(january|february|march|april|may|june|july|august|september|october|november|december|"
     r"jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec|tomorrow|today|morning|afternoon|evening|"
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
-    r"am|pm|\d{1,2}:\d{2}|\d{1,2}\s*(am|pm))\b",
+    r"am|pm|\d{1,2}:\d{2}|\d{1,2}\s*(am|pm)|o['’]?clock)\b",
     re.I,
 )
 _WEEKDAYS = {
@@ -39,6 +39,84 @@ _WEEKDAYS = {
 }
 _MONTHS = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
 _MONTHS.update({name.lower(): i for i, name in enumerate(calendar.month_abbr) if name})
+
+_HOUR_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+}
+_MINUTE_WORDS = {
+    "zero": 0,
+    "oh": 0,
+    "o": 0,
+    "five": 5,
+    "ten": 10,
+    "fifteen": 15,
+    "twenty": 20,
+    "twenty five": 25,
+    "twenty-five": 25,
+    "thirty": 30,
+    "thirty five": 35,
+    "thirty-five": 35,
+    "forty": 40,
+    "forty five": 45,
+    "forty-five": 45,
+    "fifty": 50,
+    "fifty five": 55,
+    "fifty-five": 55,
+}
+_DAY_ORDINALS = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+    "eleventh": 11,
+    "twelfth": 12,
+    "thirteenth": 13,
+    "fourteenth": 14,
+    "fifteenth": 15,
+    "sixteenth": 16,
+    "seventeenth": 17,
+    "eighteenth": 18,
+    "nineteenth": 19,
+    "twentieth": 20,
+    "twenty first": 21,
+    "twenty-first": 21,
+    "twenty second": 22,
+    "twenty-second": 22,
+    "twenty third": 23,
+    "twenty-third": 23,
+    "twenty fourth": 24,
+    "twenty-fourth": 24,
+    "twenty fifth": 25,
+    "twenty-fifth": 25,
+    "twenty sixth": 26,
+    "twenty-sixth": 26,
+    "twenty seventh": 27,
+    "twenty-seventh": 27,
+    "twenty eighth": 28,
+    "twenty-eighth": 28,
+    "twenty ninth": 29,
+    "twenty-ninth": 29,
+    "thirtieth": 30,
+    "thirty first": 31,
+    "thirty-first": 31,
+}
 
 
 def extract_yes_no(text: str) -> Literal["yes", "no", "unknown"]:
@@ -80,9 +158,70 @@ def extract_slot_choice(text: str) -> Literal[1, 2] | None:
     return None
 
 
+def _normalize_spoken_datetime(text: str) -> str:
+    """Map common STT word forms into digits the clock/date regexes understand."""
+    lowered = text.strip().lower()
+    lowered = lowered.replace("a.m.", "am").replace("p.m.", "pm")
+    lowered = re.sub(r"\bo['’]?clock\b", "oclock", lowered)
+
+    # Longer ordinals first (twenty-first before first)
+    for word, num in sorted(_DAY_ORDINALS.items(), key=lambda kv: -len(kv[0])):
+        lowered = re.sub(rf"\b{re.escape(word)}\b", str(num), lowered)
+
+    # half past ten → 10:30 ; quarter past ten → 10:15 ; quarter to ten → 9:45
+    def _hour_token(group: str) -> str:
+        g = group.strip().lower()
+        if g.isdigit():
+            return g
+        return str(_HOUR_WORDS.get(g, g))
+
+    def _half_past(m: re.Match[str]) -> str:
+        return f"{_hour_token(m.group(1))}:30"
+
+    def _quarter_past(m: re.Match[str]) -> str:
+        return f"{_hour_token(m.group(1))}:15"
+
+    def _quarter_to(m: re.Match[str]) -> str:
+        hour = int(_hour_token(m.group(1)))
+        hour = 12 if hour == 1 else hour - 1
+        return f"{hour}:45"
+
+    hour_alt = r"(?:\d{1,2}|" + "|".join(_HOUR_WORDS.keys()) + r")"
+    lowered = re.sub(rf"\bhalf\s+past\s+({hour_alt})\b", _half_past, lowered)
+    lowered = re.sub(rf"\bquarter\s+past\s+({hour_alt})\b", _quarter_past, lowered)
+    lowered = re.sub(rf"\bquarter\s+to\s+({hour_alt})\b", _quarter_to, lowered)
+
+    # ten thirty → 10:30 (with optional am/pm kept after)
+    def _word_hour_minute(m: re.Match[str]) -> str:
+        hour = _HOUR_WORDS[m.group(1)]
+        minute = _MINUTE_WORDS[m.group(2)]
+        return f"{hour}:{minute:02d}"
+
+    minute_alt = "|".join(sorted(_MINUTE_WORDS.keys(), key=len, reverse=True))
+    hour_words = "|".join(_HOUR_WORDS.keys())
+    lowered = re.sub(
+        rf"\b({hour_words})\s+({minute_alt})\b",
+        _word_hour_minute,
+        lowered,
+    )
+
+    # ten am / ten oclock → 10 am / 10
+    def _word_hour(m: re.Match[str]) -> str:
+        return f"{_HOUR_WORDS[m.group(1)]} {m.group(2) or ''}".strip()
+
+    lowered = re.sub(
+        rf"\b({hour_words})\s*(am|pm|oclock)?\b",
+        _word_hour,
+        lowered,
+    )
+    lowered = re.sub(r"\boclock\b", "", lowered)
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
 def _parse_clock_time(text: str) -> time | None:
     """Parse an exact clock time from speech/text (IST assumed)."""
-    lowered = text.strip().lower()
+    lowered = _normalize_spoken_datetime(text)
+
     # 10:00, 10:00am, 10:00 am, 10:00 IST
     m = re.search(r"\b(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)?\b", lowered)
     if m:
@@ -93,6 +232,10 @@ def _parse_clock_time(text: str) -> time | None:
             hour += 12
         if meridiem.startswith("a") and hour == 12:
             hour = 0
+        # Bare afternoon hours without am/pm: 13–23 already 24h
+        if not meridiem and 1 <= hour <= 7:
+            # Ambiguous early hour with no meridiem — treat as AM for advisor hours
+            pass
         if 0 <= hour <= 23 and 0 <= minute <= 59:
             return time(hour, minute)
 
@@ -130,7 +273,7 @@ def match_offered_slot_choice(
     pref = extract_preference(text, today_ist=today_ist)
     exact_time = pref.exact_time_ist if pref else _parse_clock_time(text)
     weekday = None
-    lowered = text.strip().lower()
+    lowered = _normalize_spoken_datetime(text)
     for name, idx in _WEEKDAYS.items():
         if re.search(rf"\b{name}\b", lowered):
             weekday = idx
@@ -175,13 +318,14 @@ def match_offered_slot_choice(
     return None
 
 
-def looks_like_datetime_request(text: str) -> bool:
+def looks_like_datetime_request(text: str, *, today_ist: date | None = None) -> bool:
     """True when the user appears to propose a date/time instead of option 1/2."""
     if not text or not text.strip():
         return False
     if extract_slot_choice(text) is not None:
         return False
-    return extract_preference(text, today_ist=date.today()) is not None or bool(
+    anchor = today_ist or date.today()
+    return extract_preference(text, today_ist=anchor) is not None or bool(
         _DATEISH.search(text.lower())
     )
 
@@ -190,13 +334,99 @@ def extract_topic(text: str) -> Topic | None:
     return parse_topic(text)
 
 
+def _parse_calendar_date(lowered: str, *, today_ist: date) -> date | None:
+    iso = re.search(r"\b(20\d{2})-(\d{2})-(\d{2})\b", lowered)
+    if iso:
+        return date(int(iso.group(1)), int(iso.group(2)), int(iso.group(3)))
+
+    # DD/MM/YYYY or DD-MM-YYYY (IST / India style)
+    slash = re.search(r"\b(\d{1,2})[/-](\d{1,2})(?:[/-](20\d{2}))?\b", lowered)
+    if slash:
+        day_n, month_n = int(slash.group(1)), int(slash.group(2))
+        year = int(slash.group(3)) if slash.group(3) else today_ist.year
+        if 1 <= month_n <= 12 and 1 <= day_n <= 31:
+            try:
+                parsed = date(year, month_n, day_n)
+            except ValueError:
+                parsed = None
+            if parsed and parsed < today_ist and not slash.group(3):
+                try:
+                    parsed = date(today_ist.year + 1, month_n, day_n)
+                except ValueError:
+                    pass
+            if parsed:
+                return parsed
+
+    month_alt = "|".join(re.escape(m) for m in _MONTHS.keys())
+
+    # Month Day[, Year] — July 16 / July 16th 2026
+    m = re.search(
+        rf"\b({month_alt})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s*(20\d{{2}}))?\b",
+        lowered,
+    )
+    if m:
+        month = _MONTHS[m.group(1)]
+        day = int(m.group(2))
+        year = int(m.group(3)) if m.group(3) else today_ist.year
+        try:
+            date_ist = date(year, month, day)
+        except ValueError:
+            date_ist = None
+        if date_ist and date_ist < today_ist and not m.group(3):
+            try:
+                date_ist = date(today_ist.year + 1, month, day)
+            except ValueError:
+                pass
+        if date_ist:
+            return date_ist
+
+    # Day Month[, Year] — 16 July / 16th of July
+    m = re.search(
+        rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({month_alt})(?:,?\s*(20\d{{2}}))?\b",
+        lowered,
+    )
+    if m:
+        day = int(m.group(1))
+        month = _MONTHS[m.group(2)]
+        year = int(m.group(3)) if m.group(3) else today_ist.year
+        try:
+            date_ist = date(year, month, day)
+        except ValueError:
+            date_ist = None
+        if date_ist and date_ist < today_ist and not m.group(3):
+            try:
+                date_ist = date(today_ist.year + 1, month, day)
+            except ValueError:
+                pass
+        if date_ist:
+            return date_ist
+
+    if "tomorrow" in lowered:
+        return today_ist + timedelta(days=1)
+    if "today" in lowered:
+        return today_ist
+
+    for name, weekday in _WEEKDAYS.items():
+        next_m = re.search(rf"\bnext\s+{name}\b", lowered)
+        if next_m:
+            delta = (weekday - today_ist.weekday()) % 7
+            if delta == 0:
+                delta = 7
+            return today_ist + timedelta(days=delta)
+        if re.search(rf"\b{name}\b", lowered):
+            delta = (weekday - today_ist.weekday()) % 7
+            return today_ist + timedelta(days=delta)
+
+    return None
+
+
 def extract_preference(text: str, *, today_ist: date) -> TimePreference | None:
     """Parse day / window / exact clock time preference into IST fields."""
     if not text or not text.strip():
         return None
 
     raw = text.strip()
-    lowered = raw.lower()
+    lowered = _normalize_spoken_datetime(raw)
     exact_time = _parse_clock_time(lowered)
 
     window_start: time | None = None
@@ -209,42 +439,7 @@ def extract_preference(text: str, *, today_ist: date) -> TimePreference | None:
         elif "evening" in lowered:
             window_start, window_end = time(17, 0), time(20, 0)
 
-    date_ist: date | None = None
-
-    iso = re.search(r"\b(20\d{2})-(\d{2})-(\d{2})\b", lowered)
-    if iso:
-        date_ist = date(int(iso.group(1)), int(iso.group(2)), int(iso.group(3)))
-    else:
-        m = re.search(
-            r"\b(" + "|".join(_MONTHS.keys()) + r")\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(20\d{2}))?\b",
-            lowered,
-        )
-        if m:
-            month = _MONTHS[m.group(1)]
-            day = int(m.group(2))
-            year = int(m.group(3)) if m.group(3) else today_ist.year
-            try:
-                date_ist = date(year, month, day)
-            except ValueError:
-                date_ist = None
-            if date_ist and date_ist < today_ist and not m.group(3):
-                try:
-                    date_ist = date(today_ist.year + 1, month, day)
-                except ValueError:
-                    pass
-
-    if date_ist is None:
-        if "tomorrow" in lowered:
-            date_ist = today_ist + timedelta(days=1)
-        elif "today" in lowered:
-            date_ist = today_ist
-        else:
-            for name, weekday in _WEEKDAYS.items():
-                if re.search(rf"\b{name}\b", lowered):
-                    # Next occurrence of that weekday (including today)
-                    delta = (weekday - today_ist.weekday()) % 7
-                    date_ist = today_ist + timedelta(days=delta)
-                    break
+    date_ist = _parse_calendar_date(lowered, today_ist=today_ist)
 
     if date_ist is None and window_start is None and exact_time is None:
         return None

@@ -20,9 +20,15 @@ function stepForState(state: string): 'Welcome' | 'Disclaimer' | 'Topic' | 'Time
   if (state === 'disclaimer') return 'Disclaimer'
   if (state === 'intent' || state === 'topic' || state === 'prepare_topic') return 'Topic'
   if (state === 'preference' || state === 'reschedule_preference') return 'Time'
-  if (state === 'offer_slots' || state === 'reschedule_offer' || state === 'confirm' || state === 'reschedule_confirm')
-    return 'Slots'
-  if (state === 'close' || state === 'ended' || state === 'orchestrate') return 'Confirm'
+  if (state === 'offer_slots' || state === 'reschedule_offer') return 'Slots'
+  if (
+    state === 'confirm' ||
+    state === 'reschedule_confirm' ||
+    state === 'close' ||
+    state === 'ended' ||
+    state === 'orchestrate'
+  )
+    return 'Confirm'
   return 'Welcome'
 }
 
@@ -335,7 +341,14 @@ export default function App() {
 
   const bookingCode = String(meta.booking_code ?? '')
   const secureUrl = String(meta.secure_details_url ?? '')
+  const selectedWhen =
+    typeof meta.selected_slot_start === 'string'
+      ? formatSlotLabel(meta.selected_slot_start)
+      : typeof meta.slot_start === 'string'
+        ? formatSlotLabel(meta.slot_start)
+        : ''
   const whenText =
+    selectedWhen ||
     slots[0]?.startText ||
     (typeof meta.selected_slot_id === 'string' ? 'your selected IST slot' : 'your confirmed IST slot')
 
