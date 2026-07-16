@@ -338,11 +338,11 @@ class ConversationEngine:
 
     def _on_preference(self, session: Session, text: str, events: list[AnalyticsEvent]) -> TurnResult:
         pref = extract_preference(text, today_ist=self.today_ist)
-        if pref is None or pref.date_ist is None:
+        if pref is None or (pref.date_ist is None and pref.exact_time_ist is None):
             return TurnResult(
                 messages=[
-                    "Please share a day (and optional morning/afternoon/evening) in IST, "
-                    "e.g. “July 15 morning”."
+                    "Please share a day and time in IST. "
+                    "For example: “July 16 at 10:00 am” or “July 15 morning”."
                 ],
                 state=session.state,
                 session_id=session.session_id,
@@ -352,17 +352,35 @@ class ConversationEngine:
         session.preference = pref
         slots = find_slots(pref, self.calendar, n=2)
         if not slots:
+            if pref.exact_time_ist is not None:
+                when = pref.exact_time_ist.strftime("%H:%M")
+                day = pref.date_ist.isoformat() if pref.date_ist else "that day"
+                return TurnResult(
+                    messages=[
+                        f"I don’t have an exact available slot at {when} IST on {day}. "
+                        "Please try another exact time, or say a morning/afternoon/evening window."
+                    ],
+                    state=session.state,
+                    session_id=session.session_id,
+                    events=events,
+                )
             return self._waitlist(session, events)
 
         session.offered_slots = slots
         self._transition(session, SessionState.OFFER_SLOTS, events)
         self.sessions.save(session)
-        lines = [
-            "Here are two available slots (IST):",
-            f"1) {format_ist(slots[0].start)}",
-            f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
-            "Reply with 1 or 2 to choose.",
-        ]
+        if pref.exact_time_ist is not None and len(slots) == 1:
+            lines = [
+                f"I found an exact match for {format_ist(slots[0].start)} (IST).",
+                "Reply 1 to choose it, or tell me another exact date/time.",
+            ]
+        else:
+            lines = [
+                "Here are available slots matching what you said (IST):",
+                f"1) {format_ist(slots[0].start)}",
+                f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
+                "Reply with 1 or 2, or repeat the exact date/time to choose.",
+            ]
         return TurnResult(
             messages=[m for m in lines if m],
             state=session.state,
@@ -385,11 +403,11 @@ class ConversationEngine:
         if choice is None or choice > len(session.offered_slots):
             if looks_like_datetime_request(text):
                 msg = (
-                    "Please choose option 1 or 2 from the slots shown. "
-                    "I can’t take a different date or time here."
+                    "That date/time doesn’t exactly match option 1 or 2. "
+                    "Please say option 1 or 2, or repeat the exact shown time."
                 )
             else:
-                msg = "Please choose slot 1 or 2."
+                msg = "Please choose slot 1 or 2, or say the exact date/time shown."
             return TurnResult(
                 messages=[msg],
                 state=session.state,
@@ -697,10 +715,11 @@ class ConversationEngine:
         self, session: Session, text: str, events: list[AnalyticsEvent]
     ) -> TurnResult:
         pref = extract_preference(text, today_ist=self.today_ist)
-        if pref is None or pref.date_ist is None:
+        if pref is None or (pref.date_ist is None and pref.exact_time_ist is None):
             return TurnResult(
                 messages=[
-                    "Please share a day (and optional morning/afternoon/evening) in IST."
+                    "Please share a new day/time in IST, e.g. “July 16 at 10:00 am” "
+                    "or “July 16 morning”."
                 ],
                 state=session.state,
                 session_id=session.session_id,
@@ -709,16 +728,28 @@ class ConversationEngine:
         session.preference = pref
         slots = find_slots(pref, self.calendar, n=2)
         if not slots:
+            if pref.exact_time_ist is not None:
+                when = pref.exact_time_ist.strftime("%H:%M")
+                day = pref.date_ist.isoformat() if pref.date_ist else "that day"
+                return TurnResult(
+                    messages=[
+                        f"No exact available slot at {when} IST on {day} for reschedule. "
+                        "Try another exact time or a morning/afternoon/evening window."
+                    ],
+                    state=session.state,
+                    session_id=session.session_id,
+                    events=events,
+                )
             return self._waitlist(session, events)
 
         session.offered_slots = slots
         self._transition(session, SessionState.RESCHEDULE_OFFER, events)
         self.sessions.save(session)
         lines = [
-            "Here are two available slots for the reschedule (IST):",
+            "Here are available slots matching what you said (IST):",
             f"1) {format_ist(slots[0].start)}",
             f"2) {format_ist(slots[1].start)}" if len(slots) > 1 else "",
-            "Reply with 1 or 2.",
+            "Reply with 1 or 2, or repeat the exact date/time.",
         ]
         return TurnResult(
             messages=[m for m in lines if m],
@@ -743,11 +774,11 @@ class ConversationEngine:
         if choice is None or choice > len(session.offered_slots):
             if looks_like_datetime_request(text):
                 msg = (
-                    "Please choose option 1 or 2 for the reschedule. "
-                    "I can’t take a different date or time here."
+                    "That date/time doesn’t exactly match option 1 or 2. "
+                    "Please say option 1 or 2, or repeat the exact shown time."
                 )
             else:
-                msg = "Please choose slot 1 or 2 for the reschedule."
+                msg = "Please choose slot 1 or 2, or say the exact date/time shown."
             return TurnResult(
                 messages=[msg],
                 state=session.state,

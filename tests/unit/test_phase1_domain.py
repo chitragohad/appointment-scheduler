@@ -214,6 +214,26 @@ def test_find_slots_does_not_return_held(calendar: MockCalendarService) -> None:
     assert all(s.id != "slot_20260715_1600" for s in found)
 
 
+def test_find_slots_exact_time_match(calendar: MockCalendarService) -> None:
+    pref = TimePreference(
+        date_ist=date(2026, 7, 15),
+        exact_time_ist=time(10, 0),
+        raw_text="July 15 at 10:00",
+    )
+    found = find_slots(pref, calendar, n=2)
+    assert len(found) == 1
+    assert found[0].id == "slot_20260715_1000"
+
+
+def test_find_slots_exact_time_no_match(calendar: MockCalendarService) -> None:
+    pref = TimePreference(
+        date_ist=date(2026, 7, 15),
+        exact_time_ist=time(10, 15),
+        raw_text="July 15 at 10:15",
+    )
+    assert find_slots(pref, calendar, n=2) == []
+
+
 # --- booking store ----------------------------------------------------------
 
 

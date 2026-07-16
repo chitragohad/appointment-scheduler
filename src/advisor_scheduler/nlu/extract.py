@@ -16,7 +16,7 @@ _DATEISH = re.compile(
     r"\b(january|february|march|april|may|june|july|august|september|october|november|december|"
     r"jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec|tomorrow|today|morning|afternoon|evening|"
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
-    r"am|pm|\d{1,2}:\d{2})\b",
+    r"am|pm|\d{1,2}:\d{2}|\d{1,2}\s*(am|pm))\b",
     re.I,
 )
 _WEEKDAYS = {
@@ -28,6 +28,8 @@ _WEEKDAYS = {
     "saturday": 5,
     "sunday": 6,
 }
+_MONTHS = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
+_MONTHS.update({name.lower(): i for i, name in enumerate(calendar.month_abbr) if name})
 
 
 def extract_yes_no(text: str) -> Literal["yes", "no", "unknown"]:
@@ -41,7 +43,7 @@ def extract_yes_no(text: str) -> Literal["yes", "no", "unknown"]:
 
 
 def extract_slot_choice(text: str) -> Literal[1, 2] | None:
-    """Accept only clear option-1 / option-2 answers (not freeform dates)."""
+    """Accept clear option-1 / option-2 answers."""
     if not text:
         return None
     lowered = text.strip().lower()
@@ -50,7 +52,6 @@ def extract_slot_choice(text: str) -> Literal[1, 2] | None:
         or re.search(r"\b(first|second|1st|2nd)\b", lowered)
         or lowered in {"1", "2", "one", "two"}
     )
-    # Freeform date/time alone must not select a slot
     if _DATEISH.search(lowered) and not explicit_option:
         return None
     if len(lowered) > 48 and not explicit_option:
@@ -67,6 +68,36 @@ def extract_slot_choice(text: str) -> Literal[1, 2] | None:
     return None
 
 
+def _parse_clock_time(text: str) -> time | None:
+    """Parse an exact clock time from speech/text (IST assumed)."""
+    lowered = text.strip().lower()
+    # 10:00, 10:00am, 10:00 am, 10:00 IST
+    m = re.search(r"\b(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)?\b", lowered)
+    if m:
+        hour = int(m.group(1))
+        minute = int(m.group(2))
+        meridiem = (m.group(3) or "").replace(".", "")
+        if meridiem.startswith("p") and hour < 12:
+            hour += 12
+        if meridiem.startswith("a") and hour == 12:
+            hour = 0
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return time(hour, minute)
+
+    # 10am, 10 am, 11 pm
+    m = re.search(r"\b(\d{1,2})\s*(a\.?m\.?|p\.?m\.?)\b", lowered)
+    if m:
+        hour = int(m.group(1))
+        meridiem = m.group(2).replace(".", "")
+        if meridiem.startswith("p") and hour < 12:
+            hour += 12
+        if meridiem.startswith("a") and hour == 12:
+            hour = 0
+        if 0 <= hour <= 23:
+            return time(hour, 0)
+    return None
+
+
 def match_offered_slot_choice(
     text: str,
     offered: list[Slot],
@@ -74,8 +105,8 @@ def match_offered_slot_choice(
     today_ist: date,
 ) -> Literal[1, 2] | None:
     """
-    Map user text to option 1/2 only.
-    Freeform dates are accepted only when they uniquely match an already offered slot.
+    Map user text to option 1/2.
+    Spoken date/time is accepted only when it exactly matches one offered slot.
     """
     if not text or not offered:
         return None
@@ -85,8 +116,7 @@ def match_offered_slot_choice(
         return direct
 
     pref = extract_preference(text, today_ist=today_ist)
-    matches: list[int] = []
-
+    exact_time = pref.exact_time_ist if pref else _parse_clock_time(text)
     weekday = None
     lowered = text.strip().lower()
     for name, idx in _WEEKDAYS.items():
@@ -94,23 +124,37 @@ def match_offered_slot_choice(
             weekday = idx
             break
 
+    matches: list[int] = []
     for idx, slot in enumerate(offered[:2], start=1):
         local = slot.start
         slot_day = local.date()
+        slot_t = local.time().replace(second=0, microsecond=0)
+
+        if exact_time is not None:
+            if slot_t.hour != exact_time.hour or slot_t.minute != exact_time.minute:
+                continue
+            if pref and pref.date_ist is not None and slot_day != pref.date_ist:
+                continue
+            if weekday is not None and slot_day.weekday() != weekday:
+                continue
+            matches.append(idx)
+            continue
+
         if pref is not None and pref.date_ist is not None:
             if slot_day != pref.date_ist:
                 continue
             if pref.window_start_ist and pref.window_end_ist:
-                if not (pref.window_start_ist <= local.time() < pref.window_end_ist):
+                if not (pref.window_start_ist <= slot_t < pref.window_end_ist):
                     continue
             matches.append(idx)
             continue
+
         if weekday is not None and slot_day.weekday() == weekday:
-            if "morning" in lowered and not (time(9, 0) <= local.time() < time(12, 0)):
+            if "morning" in lowered and not (time(9, 0) <= slot_t < time(12, 0)):
                 continue
-            if "afternoon" in lowered and not (time(12, 0) <= local.time() < time(17, 0)):
+            if "afternoon" in lowered and not (time(12, 0) <= slot_t < time(17, 0)):
                 continue
-            if "evening" in lowered and not (time(17, 0) <= local.time() < time(20, 0)):
+            if "evening" in lowered and not (time(17, 0) <= slot_t < time(20, 0)):
                 continue
             matches.append(idx)
 
@@ -134,26 +178,24 @@ def extract_topic(text: str) -> Topic | None:
     return parse_topic(text)
 
 
-_MONTHS = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
-_MONTHS.update({name.lower(): i for i, name in enumerate(calendar.month_abbr) if name})
-
-
 def extract_preference(text: str, *, today_ist: date) -> TimePreference | None:
-    """Parse a simple day/time preference into IST fields."""
+    """Parse day / window / exact clock time preference into IST fields."""
     if not text or not text.strip():
         return None
 
     raw = text.strip()
     lowered = raw.lower()
+    exact_time = _parse_clock_time(lowered)
 
     window_start: time | None = None
     window_end: time | None = None
-    if "morning" in lowered:
-        window_start, window_end = time(9, 0), time(12, 0)
-    elif "afternoon" in lowered:
-        window_start, window_end = time(12, 0), time(17, 0)
-    elif "evening" in lowered:
-        window_start, window_end = time(17, 0), time(20, 0)
+    if exact_time is None:
+        if "morning" in lowered:
+            window_start, window_end = time(9, 0), time(12, 0)
+        elif "afternoon" in lowered:
+            window_start, window_end = time(12, 0), time(17, 0)
+        elif "evening" in lowered:
+            window_start, window_end = time(17, 0), time(20, 0)
 
     date_ist: date | None = None
 
@@ -184,13 +226,21 @@ def extract_preference(text: str, *, today_ist: date) -> TimePreference | None:
             date_ist = today_ist + timedelta(days=1)
         elif "today" in lowered:
             date_ist = today_ist
+        else:
+            for name, weekday in _WEEKDAYS.items():
+                if re.search(rf"\b{name}\b", lowered):
+                    # Next occurrence of that weekday (including today)
+                    delta = (weekday - today_ist.weekday()) % 7
+                    date_ist = today_ist + timedelta(days=delta)
+                    break
 
-    if date_ist is None and window_start is None:
+    if date_ist is None and window_start is None and exact_time is None:
         return None
 
     return TimePreference(
         date_ist=date_ist,
         window_start_ist=window_start,
         window_end_ist=window_end,
+        exact_time_ist=exact_time,
         raw_text=raw,
     )

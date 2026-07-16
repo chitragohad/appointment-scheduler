@@ -116,6 +116,14 @@ def test_extract_preference_july_15_morning() -> None:
     assert pref.window_end_ist == time(12, 0)
 
 
+def test_extract_preference_exact_time() -> None:
+    pref = extract_preference("July 16 at 10:00 am", today_ist=date(2026, 7, 13))
+    assert pref is not None
+    assert pref.date_ist == date(2026, 7, 16)
+    assert pref.exact_time_ist == time(10, 0)
+    assert pref.window_start_ist is None
+
+
 # --- orchestrator guards ----------------------------------------------------
 
 

@@ -25,6 +25,8 @@ class TimePreference(BaseModel):
     date_ist: date | None = None
     window_start_ist: time | None = None
     window_end_ist: time | None = None
+    # When set, only slots starting at this exact IST clock time are eligible
+    exact_time_ist: time | None = None
     raw_text: str = ""
 
 
@@ -86,12 +88,25 @@ def find_slots(
     Return up to ``n`` available slots closest to preference (IST).
 
     Never invents slots; returns [] when none are available / suitable.
+    If ``exact_time_ist`` is set, only same-clock-time slots (and same day when
+    ``date_ist`` is set) are returned — no fuzzy substitutes.
     """
     available = list(calendar.list_available())
     if not available:
         return []
 
-    # If a preferred date is set, only consider slots within ±7 days;
+    if preference.exact_time_ist is not None:
+        exact: list[Slot] = []
+        for s in available:
+            start = _to_ist(s.start)
+            if start.hour != preference.exact_time_ist.hour or start.minute != preference.exact_time_ist.minute:
+                continue
+            if preference.date_ist is not None and start.date() != preference.date_ist:
+                continue
+            exact.append(s)
+        return sorted(exact, key=lambda s: _to_ist(s.start))[:n]
+
+    # If a preferred date is set, only consider slots within ±3 days;
     # if still empty, return [] (waitlist path) rather than distant invent-like matches.
     if preference.date_ist is not None:
         window_days = 3
@@ -102,7 +117,6 @@ def find_slots(
             for s in available
             if lo <= _to_ist(s.start).date() <= hi
         ]
-        # For far-future prefs with zero nearby slots, return empty
         if not nearby:
             return []
         available = nearby
