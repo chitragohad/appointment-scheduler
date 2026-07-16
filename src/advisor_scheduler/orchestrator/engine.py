@@ -22,6 +22,8 @@ from advisor_scheduler.nlu.extract import (
     extract_slot_choice,
     extract_topic,
     extract_yes_no,
+    looks_like_datetime_request,
+    match_offered_slot_choice,
 )
 from advisor_scheduler.orchestrator.events import AnalyticsEvent
 from advisor_scheduler.orchestrator.machine import TurnResult
@@ -375,13 +377,30 @@ class ConversationEngine:
         )
 
     def _on_offer_slots(self, session: Session, text: str, events: list[AnalyticsEvent]) -> TurnResult:
-        choice = extract_slot_choice(text)
+        choice = match_offered_slot_choice(
+            text,
+            session.offered_slots,
+            today_ist=self.today_ist,
+        )
         if choice is None or choice > len(session.offered_slots):
+            if looks_like_datetime_request(text):
+                msg = (
+                    "Please choose option 1 or 2 from the slots shown. "
+                    "I can’t take a different date or time here."
+                )
+            else:
+                msg = "Please choose slot 1 or 2."
             return TurnResult(
-                messages=["Please choose slot 1 or 2."],
+                messages=[msg],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,
+                meta={
+                    "offered_slots": [
+                        {"id": s.id, "start": s.start.isoformat(), "end": s.end.isoformat()}
+                        for s in session.offered_slots
+                    ]
+                },
             )
 
         session.selected_slot = session.offered_slots[choice - 1]
@@ -716,10 +735,21 @@ class ConversationEngine:
     def _on_reschedule_offer(
         self, session: Session, text: str, events: list[AnalyticsEvent]
     ) -> TurnResult:
-        choice = extract_slot_choice(text)
+        choice = match_offered_slot_choice(
+            text,
+            session.offered_slots,
+            today_ist=self.today_ist,
+        )
         if choice is None or choice > len(session.offered_slots):
+            if looks_like_datetime_request(text):
+                msg = (
+                    "Please choose option 1 or 2 for the reschedule. "
+                    "I can’t take a different date or time here."
+                )
+            else:
+                msg = "Please choose slot 1 or 2 for the reschedule."
             return TurnResult(
-                messages=["Please choose slot 1 or 2 for the reschedule."],
+                messages=[msg],
                 state=session.state,
                 session_id=session.session_id,
                 events=events,

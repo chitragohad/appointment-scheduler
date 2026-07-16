@@ -14,11 +14,8 @@ type SlotOfferProps = {
 export function SlotOffer({ slots, caption, onSelect, onEnd }: SlotOfferProps) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-gutter">
-      <p className="mb-md w-full text-center text-label-sm uppercase tracking-widest text-primary">
-        Agent speaking…
-      </p>
       <p
-        className="w-full max-w-2xl text-center text-headline-md leading-relaxed text-on-surface"
+        className="w-full max-w-2xl text-center text-body-lg leading-relaxed text-on-surface-variant"
         style={{ animation: 'caption-in 0.45s ease both' }}
       >
         {caption}
