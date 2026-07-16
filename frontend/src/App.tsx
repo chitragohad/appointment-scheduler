@@ -51,6 +51,14 @@ const SUGGESTIONS = [
   { title: 'Reschedule', prompt: 'I want to reschedule', hint: 'Change an existing booking' },
 ] as const
 
+const TOPICS = [
+  { label: '1 · KYC/Onboarding', prompt: 'KYC/Onboarding' },
+  { label: '2 · SIP/Mandates', prompt: 'SIP/Mandates' },
+  { label: '3 · Statements/Tax Docs', prompt: 'Statements/Tax Docs' },
+  { label: '4 · Withdrawals & Timelines', prompt: 'Withdrawals & Timelines' },
+  { label: '5 · Account Changes/Nominee', prompt: 'Account Changes/Nominee' },
+] as const
+
 function speakableText(messages: string[]): string {
   return messages
     .filter((m) => {
@@ -399,6 +407,20 @@ export default function App() {
               : 'Speak naturally, or type below.'}
           </p>
           <LiveCaption text={caption} />
+          {state === 'topic' && (
+            <div className="mt-lg grid w-full max-w-2xl grid-cols-1 gap-sm sm:grid-cols-2">
+              {TOPICS.map((topic) => (
+                <button
+                  key={topic.prompt}
+                  type="button"
+                  onClick={() => void handleUserText(topic.prompt)}
+                  className="rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-left text-body-md text-primary transition hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  {topic.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mt-lg flex w-full max-w-2xl flex-wrap items-center justify-center gap-md">
             {state === 'disclaimer' && (
               <button

@@ -36,10 +36,22 @@ CODE_RE = re.compile(r"^NL-[A-Z0-9]{4}$")
     [
         ("KYC/Onboarding", Topic.KYC_ONBOARDING),
         ("kyc onboarding", Topic.KYC_ONBOARDING),
+        ("K Y C", Topic.KYC_ONBOARDING),
+        ("1", Topic.KYC_ONBOARDING),
+        ("option 1", Topic.KYC_ONBOARDING),
         ("I need help with SIP mandates", Topic.SIP_MANDATES),
+        ("S I P", Topic.SIP_MANDATES),
+        ("2", Topic.SIP_MANDATES),
         ("statements and tax docs", Topic.STATEMENTS_TAX),
+        ("tax docs", Topic.STATEMENTS_TAX),
+        ("3", Topic.STATEMENTS_TAX),
         ("withdrawals & timelines", Topic.WITHDRAWALS),
+        ("withdrawal", Topic.WITHDRAWALS),
+        ("4", Topic.WITHDRAWALS),
         ("account changes nominee", Topic.ACCOUNT_NOMINEE),
+        ("nominee", Topic.ACCOUNT_NOMINEE),
+        ("5", Topic.ACCOUNT_NOMINEE),
+        ("fifth", Topic.ACCOUNT_NOMINEE),
     ],
 )
 def test_parse_topic_accepts_known_topics(text: str, expected: Topic) -> None:

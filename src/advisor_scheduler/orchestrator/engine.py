@@ -30,8 +30,8 @@ from advisor_scheduler.secure_link import issue_secure_details_url
 
 _TOPIC_PROMPT = (
     "Which consultation topic fits best? "
-    "KYC/Onboarding, SIP/Mandates, Statements/Tax Docs, "
-    "Withdrawals & Timelines, or Account Changes/Nominee."
+    "Say 1 KYC/Onboarding, 2 SIP/Mandates, 3 Statements/Tax Docs, "
+    "4 Withdrawals & Timelines, or 5 Account Changes/Nominee."
 )
 
 
