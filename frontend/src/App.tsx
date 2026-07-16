@@ -214,8 +214,8 @@ export default function App() {
           onEnd: () => {
             if (!listenAfterSpeakRef.current) return
             if (phaseRef.current === 'confirmed' || phaseRef.current === 'idle') return
-            // Brief gap so TTS releases the mic before STT starts
-            window.setTimeout(() => beginListening(), 450)
+            // Brief gap so TTS releases the mic before STT starts (avoid prompt echo)
+            window.setTimeout(() => beginListening(), 900)
           },
         })
       }, 160)
